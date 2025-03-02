@@ -2,7 +2,7 @@ body {
     font-family: 'Arial', sans-serif;
     margin: 0;
     overflow: hidden;
-    background-color: #f0f0f0;
+    background-color: transparent;
 }
 
 #game-container {
@@ -29,7 +29,7 @@ body {
 #score-container {
     display: flex;
     justify-content: space-between;
-    width: 200px;
+    width: 120px;
     margin: 10px auto;
     font-size: 1.5em;
     font-weight: bold;
@@ -46,7 +46,7 @@ body {
     background-color: #4CAF50;
     border: none;
     color: white;
-    padding: 15px 32px;
+    padding: 12px 24px;
     text-align: center;
     text-decoration: none;
     display: block;
@@ -63,11 +63,22 @@ body {
     border-radius: 10px;
     margin: 10px auto;
     max-width: 300px;
+    pointer-events: auto;
 }
 
 #instructions h2 {
     margin-top: 0;
     text-align: center;
+}
+
+#instructions a {
+    color: #4CAF50;
+    text-decoration: none;
+    pointer-events: auto;
+}
+
+#instructions a:hover {
+    text-decoration: underline;
 }
 
 #game-over {
@@ -100,12 +111,25 @@ body {
     margin-top: 15px;
     cursor: pointer;
     border-radius: 5px;
+    pointer-events: auto;
+}
+
+/* AR相关样式 */
+.a-enter-vr {
+    display: none !important; /* 隐藏VR按钮 */
+}
+
+.a-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
 }
 
 /* 响应式设计 */
 @media (max-width: 600px) {
     #score-container {
-        width: 160px;
+        width: 100px;
         font-size: 1.2em;
     }
     
