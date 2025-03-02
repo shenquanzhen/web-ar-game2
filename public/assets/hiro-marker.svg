@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg">
+  <!-- 白色背景 -->
+  <rect x="0" y="0" width="420" height="420" fill="white"/>
+  
+  <!-- 黑色外框 -->
+  <rect x="10" y="10" width="400" height="400" fill="black"/>
+  
+  <!-- 白色内框 -->
+  <rect x="60" y="60" width="300" height="300" fill="white"/>
+  
+  <!-- Hiro标记图案 - 黑色部分 -->
+  <rect x="110" y="60" width="100" height="50" fill="black"/>
+  <rect x="60" y="110" width="50" height="100" fill="black"/>
+  <rect x="310" y="110" width="50" height="100" fill="black"/>
+  <rect x="110" y="310" width="100" height="50" fill="black"/>
+</svg> 

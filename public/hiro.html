@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hiro标记</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        .marker-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .marker {
+            width: 80%;
+            max-width: 500px;
+            margin: 20px 0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        p {
+            color: #666;
+            text-align: center;
+            max-width: 600px;
+            margin: 10px 20px;
+            line-height: 1.5;
+        }
+        
+        .instructions {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px;
+            max-width: 600px;
+        }
+        
+        .button {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hiro标记</h1>
+    
+    <div class="marker-container">
+        <img src="assets/hiro-marker.svg" alt="Hiro标记" class="marker">
+    </div>
+    
+    <div class="instructions">
+        <h2>使用说明：</h2>
+        <p>1. 请将此页面保持打开状态</p>
+        <p>2. 在另一个设备上打开AR游戏</p>
+        <p>3. 将摄像头对准此标记</p>
+        <p>4. 确保光线充足，避免反光</p>
+        <p>5. 保持标记完全可见，不要遮挡</p>
+        <p>6. 如果识别困难，请尝试调整距离和角度</p>
+    </div>
+    
+    <a href="../index.html" class="button">返回游戏</a>
+</body>
+</html> 

@@ -1,0 +1,121 @@
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    overflow: hidden;
+    background-color: #f0f0f0;
+}
+
+#game-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+.ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 10;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    padding: 10px;
+    pointer-events: none;
+}
+
+#score-container {
+    display: flex;
+    justify-content: space-between;
+    width: 200px;
+    margin: 10px auto;
+    font-size: 1.5em;
+    font-weight: bold;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 5px 15px;
+    border-radius: 10px;
+}
+
+#player-score, #computer-score {
+    margin: 5px;
+}
+
+#start-button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+    font-size: 16px;
+    margin: 10px auto;
+    cursor: pointer;
+    border-radius: 5px;
+    pointer-events: auto;
+}
+
+#instructions {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 10px;
+    margin: 10px auto;
+    max-width: 300px;
+}
+
+#instructions h2 {
+    margin-top: 0;
+    text-align: center;
+}
+
+#game-over {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 20;
+    display: none;
+}
+
+#game-over h2 {
+    margin-top: 0;
+}
+
+#restart-button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin-top: 15px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+/* 响应式设计 */
+@media (max-width: 600px) {
+    #score-container {
+        width: 160px;
+        font-size: 1.2em;
+    }
+    
+    #start-button {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+    
+    #instructions {
+        font-size: 0.9em;
+        max-width: 250px;
+    }
+} 

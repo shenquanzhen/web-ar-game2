@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D乒乓球游戏</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+</head>
+<body>
+    <div id="game-container"></div>
+    
+    <div class="ui-container">
+        <div id="score-container">
+            <div id="player-score">0</div>
+            <div>:</div>
+            <div id="computer-score">0</div>
+        </div>
+        
+        <button id="start-button">开始游戏</button>
+        
+        <div id="instructions">
+            <h2>游戏说明</h2>
+            <p>1. 点击"开始游戏"按钮开始</p>
+            <p>2. 使用鼠标或触摸屏移动蓝色挡板</p>
+            <p>3. 防止白色球通过你的挡板</p>
+            <p>4. 尝试让球通过红色电脑挡板</p>
+            <p>5. 先得5分的一方获胜</p>
+        </div>
+    </div>
+    
+    <div id="game-over">
+        <h2>游戏结束</h2>
+        <p id="game-result"></p>
+        <button id="restart-button">再玩一次</button>
+    </div>
+
+    <script src="js/game.js"></script>
+</body>
+</html> 
