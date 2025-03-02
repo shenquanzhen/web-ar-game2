@@ -435,33 +435,6 @@ function createWalls() {
     rightLine.position.copy(rightWall.position);
     threeScene.add(rightLine);
     
-    // 添加背景网格 - 玩家后方
-    const backGridGeometry = new THREE.PlaneGeometry(gameWidth, gameHeight, 10, 10);
-    const backGrid = new THREE.Mesh(backGridGeometry, gridMaterial);
-    backGrid.position.z = gameDepth / 2 + 0.02;
-    backGrid.rotation.y = Math.PI;
-    threeScene.add(backGrid);
-    
-    // 添加背景网格线
-    const backEdges = new THREE.EdgesGeometry(backGridGeometry);
-    const backLine = new THREE.LineSegments(backEdges, lineMaterial);
-    backLine.position.copy(backGrid.position);
-    backLine.rotation.copy(backGrid.rotation);
-    threeScene.add(backLine);
-    
-    // 添加背景网格 - 电脑后方
-    const frontGridGeometry = new THREE.PlaneGeometry(gameWidth, gameHeight, 10, 10);
-    const frontGrid = new THREE.Mesh(frontGridGeometry, gridMaterial);
-    frontGrid.position.z = -gameDepth / 2 - 0.02;
-    threeScene.add(frontGrid);
-    
-    // 添加前方网格线
-    const frontEdges = new THREE.EdgesGeometry(frontGridGeometry);
-    const frontLine = new THREE.LineSegments(frontEdges, lineMaterial);
-    frontLine.position.copy(frontGrid.position);
-    frontLine.rotation.copy(frontGrid.rotation);
-    threeScene.add(frontLine);
-    
     // 添加环境光晕效果
     const glowLight = new THREE.PointLight(0x00BFFF, 0.5, 5);
     glowLight.position.set(0, 0, 0);
@@ -724,4 +697,4 @@ function animate() {
         // 更新电脑挡板
         updateComputerPaddle();
     }
-} 
+}
