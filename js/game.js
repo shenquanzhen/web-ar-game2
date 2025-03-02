@@ -3,7 +3,9 @@ const gameState = {
     markerVisible: false,
     isPlaying: false,
     cameraPermissionGranted: false,
-    bypassMarkerDetection: true // 新增：绕过标记检测
+    bypassMarkerDetection: true, // 新增：绕过标记检测
+    isMobile: false, // 新增：移动设备标志
+    arInitialized: false // 新增：AR初始化状态
 };
 
 // 游戏变量
@@ -20,10 +22,15 @@ let animationId = null;
 let difficulty = 0.03; // 电脑AI难度系数
 let arGameWorld; // AR游戏世界容器
 let threeScene; // Three.js场景
+let arInitRetries = 0; // AR初始化重试次数
+const MAX_AR_INIT_RETRIES = 3; // 最大重试次数
 
 // 等待页面加载完成
 window.addEventListener('load', () => {
     console.log("页面加载完成，等待AR.js初始化...");
+    
+    // 检测设备类型
+    checkDeviceType();
     
     // 请求摄像头权限
     requestCameraPermission();
@@ -31,14 +38,43 @@ window.addEventListener('load', () => {
     // 监听AR标记
     setupARListeners();
     
+    // 添加AR错误处理
+    setupARErrorHandling();
+    
     // 初始化游戏
     setTimeout(init, 2000); // 延迟初始化，确保AR.js已加载
 });
 
+// 检测设备类型
+function checkDeviceType() {
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log("设备类型: " + (isMobile ? "移动设备" : "桌面设备"));
+    
+    if (isMobile) {
+        // 移动设备特定设置
+        gameState.isMobile = true;
+        
+        // 在移动设备上，调整游戏世界位置
+        const gameWorld = document.querySelector('#game-world');
+        if (gameWorld) {
+            // 将游戏世界放置在更靠近摄像机的位置
+            gameWorld.setAttribute('position', '0 0 -2');
+            gameWorld.setAttribute('scale', '0.3 0.3 0.3');
+        }
+    }
+}
+
 // 请求摄像头权限
 function requestCameraPermission() {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true })
+        navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'environment',
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            } 
+        })
             .then(function(stream) {
                 console.log("摄像头权限已获取");
                 gameState.cameraPermissionGranted = true;
@@ -55,6 +91,63 @@ function requestCameraPermission() {
     }
 }
 
+// 设置AR错误处理
+function setupARErrorHandling() {
+    // 监听AR.js可能的错误
+    window.addEventListener('artoolkit-camera-error', function(event) {
+        console.error('AR.js摄像头错误:', event);
+        handleARError('camera');
+    });
+    
+    window.addEventListener('artoolkit-marker-error', function(event) {
+        console.error('AR.js标记错误:', event);
+        handleARError('marker');
+    });
+    
+    // 监听AR场景加载完成
+    document.addEventListener('arjs-video-loaded', function() {
+        console.log('AR.js视频加载完成');
+        gameState.arInitialized = true;
+    });
+    
+    // 监听AR场景加载错误
+    document.addEventListener('arjs-video-error', function(error) {
+        console.error('AR.js视频加载错误:', error);
+        handleARError('video');
+    });
+}
+
+// 处理AR错误
+function handleARError(errorType) {
+    console.log(`处理AR错误: ${errorType}`);
+    
+    if (arInitRetries < MAX_AR_INIT_RETRIES) {
+        arInitRetries++;
+        console.log(`AR初始化重试 ${arInitRetries}/${MAX_AR_INIT_RETRIES}`);
+        
+        // 尝试重新初始化AR
+        setTimeout(() => {
+            // 重新加载AR场景
+            const arScene = document.querySelector('a-scene');
+            if (arScene) {
+                arScene.reload();
+            }
+        }, 1000);
+    } else {
+        console.log('AR初始化失败次数过多，强制绕过标记检测');
+        // 强制绕过标记检测
+        gameState.bypassMarkerDetection = true;
+        
+        // 更新UI提示
+        updateMarkerStatus(false);
+        
+        // 确保游戏可以开始
+        if (threeScene) {
+            threeScene.visible = true;
+        }
+    }
+}
+
 // 设置AR标记监听器
 function setupARListeners() {
     // 等待DOM完全加载
@@ -68,7 +161,7 @@ function setupARListeners() {
                 gameState.markerVisible = true;
                 
                 // 如果游戏已经开始，确保游戏元素可见
-                if (gameStarted && threeScene) {
+                if (gameStarted && threeScene && !gameState.bypassMarkerDetection) {
                     threeScene.visible = true;
                 }
                 
@@ -80,8 +173,8 @@ function setupARListeners() {
                 console.log("Hiro标记丢失！");
                 gameState.markerVisible = false;
                 
-                // 如果游戏已经开始，隐藏游戏元素
-                if (gameStarted && threeScene) {
+                // 如果游戏已经开始，且不绕过标记检测，则隐藏游戏元素
+                if (gameStarted && threeScene && !gameState.bypassMarkerDetection) {
                     threeScene.visible = false;
                 }
                 
@@ -97,6 +190,8 @@ function setupARListeners() {
                     setupMarkerListeners(retryMarker);
                 } else {
                     console.error('重试后仍无法找到Hiro标记元素');
+                    // 如果仍然找不到标记，强制绕过标记检测
+                    gameState.bypassMarkerDetection = true;
                 }
             }, 2000);
         }
@@ -110,7 +205,7 @@ function setupMarkerListeners(marker) {
         gameState.markerVisible = true;
         
         // 如果游戏已经开始，确保游戏元素可见
-        if (gameStarted && threeScene) {
+        if (gameStarted && threeScene && !gameState.bypassMarkerDetection) {
             threeScene.visible = true;
         }
         
@@ -122,8 +217,8 @@ function setupMarkerListeners(marker) {
         console.log("Hiro标记丢失！");
         gameState.markerVisible = false;
         
-        // 如果游戏已经开始，隐藏游戏元素
-        if (gameStarted && threeScene) {
+        // 如果游戏已经开始，且不绕过标记检测，则隐藏游戏元素
+        if (gameStarted && threeScene && !gameState.bypassMarkerDetection) {
             threeScene.visible = false;
         }
         
@@ -217,6 +312,17 @@ function createThreeScene() {
     
     // 根据是否绕过标记检测决定场景是否可见
     threeScene.visible = gameState.bypassMarkerDetection;
+    
+    // 如果是移动设备，添加额外的光源以增强可见性
+    if (gameState.isMobile) {
+        const spotLight = new THREE.SpotLight(0xffffff, 1);
+        spotLight.position.set(0, 2, 2);
+        spotLight.angle = Math.PI / 4;
+        spotLight.penumbra = 0.1;
+        spotLight.decay = 2;
+        spotLight.distance = 10;
+        threeScene.add(spotLight);
+    }
     
     console.log("Three.js场景创建完成");
 }
