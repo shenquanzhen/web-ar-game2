@@ -2,7 +2,8 @@
 const gameState = {
     markerVisible: false,
     isPlaying: false,
-    cameraPermissionGranted: false
+    cameraPermissionGranted: false,
+    bypassMarkerDetection: true // 新增：绕过标记检测
 };
 
 // 游戏变量
@@ -140,14 +141,26 @@ function updateMarkerStatus(visible) {
             instructions.innerHTML = '<h2>标记已识别！</h2><p>点击"开始游戏"按钮开始游戏</p>';
         } else if (!gameStarted) {
             instructions.classList.remove('marker-found');
-            instructions.innerHTML = `
-                <h2>AR乒乓球游戏说明</h2>
-                <p>1. 打印或在另一设备上显示<a href="https://jeromeetienne.github.io/AR.js/data/images/HIRO.jpg" target="_blank">Hiro标记</a></p>
-                <p>2. 允许摄像头访问权限</p>
-                <p>3. 将摄像头对准Hiro标记</p>
-                <p>4. 点击"开始游戏"按钮</p>
-                <p>5. 移动设备来控制游戏视角和挡板</p>
-            `;
+            
+            // 根据是否绕过标记检测显示不同的提示
+            if (gameState.bypassMarkerDetection) {
+                instructions.innerHTML = `
+                    <h2>AR乒乓球游戏说明</h2>
+                    <p>1. 允许摄像头访问权限</p>
+                    <p>2. 点击"开始游戏"按钮</p>
+                    <p>3. 移动设备或触摸屏幕来控制挡板</p>
+                    <p>4. 如果有Hiro标记，可以将其放在摄像头前增强AR体验</p>
+                `;
+            } else {
+                instructions.innerHTML = `
+                    <h2>AR乒乓球游戏说明</h2>
+                    <p>1. 打印或在另一设备上显示<a href="https://jeromeetienne.github.io/AR.js/data/images/HIRO.jpg" target="_blank">Hiro标记</a></p>
+                    <p>2. 允许摄像头访问权限</p>
+                    <p>3. 将摄像头对准Hiro标记</p>
+                    <p>4. 点击"开始游戏"按钮</p>
+                    <p>5. 移动设备来控制游戏视角和挡板</p>
+                `;
+            }
         }
     }
 }
@@ -202,8 +215,8 @@ function createThreeScene() {
     // 将Three.js场景附加到A-Frame实体
     arGameWorld.object3D.add(threeJSScene);
     
-    // 初始隐藏场景，直到标记被找到
-    threeScene.visible = false;
+    // 根据是否绕过标记检测决定场景是否可见
+    threeScene.visible = gameState.bypassMarkerDetection;
     
     console.log("Three.js场景创建完成");
 }
@@ -334,8 +347,8 @@ function startGame() {
         return;
     }
     
-    // 检查标记是否可见
-    if (!gameState.markerVisible) {
+    // 检查标记是否可见（如果不绕过标记检测）
+    if (!gameState.markerVisible && !gameState.bypassMarkerDetection) {
         alert("请先将摄像头对准Hiro标记！");
         return;
     }
@@ -345,7 +358,7 @@ function startGame() {
     document.getElementById('start-button').style.display = 'none';
     document.getElementById('instructions').style.display = 'none';
     
-    // 显示游戏场景
+    // 显示游戏场景，无论标记是否可见
     if (threeScene) {
         threeScene.visible = true;
     }
@@ -519,7 +532,8 @@ function updateComputerPaddle() {
 function animate() {
     animationId = requestAnimationFrame(animate);
     
-    if (gameStarted && gameState.markerVisible) {
+    // 修改条件：即使标记不可见也继续游戏
+    if (gameStarted && (gameState.markerVisible || gameState.bypassMarkerDetection)) {
         // 更新球的位置
         if (ball) {
             ball.position.x += ballDirection.x * ballSpeed;

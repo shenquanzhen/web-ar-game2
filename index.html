@@ -22,11 +22,13 @@
                    sourceHeight: 960;
                    displayWidth: 1280;
                    displayHeight: 960;">
-        <!-- 使用Hiro标记 -->
+        <!-- 使用Hiro标记（可选） -->
         <a-marker preset="hiro" id="hiro-marker" emitevents="true">
-            <!-- 3D游戏容器将被放置在这里 -->
-            <a-entity id="game-world" position="0 0.5 0" scale="0.5 0.5 0.5"></a-entity>
+            <!-- 标记位置参考点 -->
         </a-marker>
+        
+        <!-- 3D游戏容器 - 直接放在场景中，不依赖于标记 -->
+        <a-entity id="game-world" position="0 0 -3" scale="0.5 0.5 0.5"></a-entity>
         
         <!-- 摄像机 -->
         <a-entity camera></a-entity>
@@ -46,11 +48,10 @@
         
         <div id="instructions">
             <h2>AR乒乓球游戏说明</h2>
-            <p>1. 打印或在另一设备上显示<a href="https://jeromeetienne.github.io/AR.js/data/images/HIRO.jpg" target="_blank">Hiro标记</a></p>
-            <p>2. 允许摄像头访问权限</p>
-            <p>3. 将摄像头对准Hiro标记</p>
-            <p>4. 点击"开始游戏"按钮</p>
-            <p>5. 移动设备来控制游戏视角和挡板</p>
+            <p>1. 允许摄像头访问权限</p>
+            <p>2. 点击"开始游戏"按钮</p>
+            <p>3. 移动设备或触摸屏幕来控制挡板</p>
+            <p>4. 如果有Hiro标记，可以将其放在摄像头前增强AR体验</p>
         </div>
     </div>
     
