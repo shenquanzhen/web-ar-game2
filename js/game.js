@@ -1,7 +1,8 @@
 // 游戏状态
 const gameState = {
     markerVisible: false,
-    isPlaying: false
+    isPlaying: false,
+    cameraPermissionGranted: false
 };
 
 // 游戏变量
@@ -21,43 +22,140 @@ let threeScene; // Three.js场景
 
 // 等待页面加载完成
 window.addEventListener('load', () => {
+    console.log("页面加载完成，等待AR.js初始化...");
+    
+    // 请求摄像头权限
+    requestCameraPermission();
+    
     // 监听AR标记
     setupARListeners();
     
     // 初始化游戏
-    setTimeout(init, 1000); // 延迟初始化，确保AR.js已加载
+    setTimeout(init, 2000); // 延迟初始化，确保AR.js已加载
 });
+
+// 请求摄像头权限
+function requestCameraPermission() {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function(stream) {
+                console.log("摄像头权限已获取");
+                gameState.cameraPermissionGranted = true;
+                // 停止流，因为AR.js会自己处理摄像头
+                stream.getTracks().forEach(track => track.stop());
+            })
+            .catch(function(error) {
+                console.error("无法获取摄像头权限:", error);
+                alert("请允许摄像头访问以使用AR功能");
+            });
+    } else {
+        console.error("浏览器不支持getUserMedia");
+        alert("您的浏览器不支持摄像头访问，请使用现代浏览器");
+    }
+}
 
 // 设置AR标记监听器
 function setupARListeners() {
-    const hiroMarker = document.querySelector('#hiro-marker');
-    if (hiroMarker) {
-        hiroMarker.addEventListener('markerFound', () => {
-            console.log("Hiro标记被找到！");
-            gameState.markerVisible = true;
+    // 等待DOM完全加载
+    document.addEventListener('DOMContentLoaded', () => {
+        const hiroMarker = document.querySelector('#hiro-marker');
+        if (hiroMarker) {
+            console.log("找到Hiro标记元素，设置事件监听器");
             
-            // 如果游戏已经开始，确保游戏元素可见
-            if (gameStarted && threeScene) {
-                threeScene.visible = true;
-            }
-        });
+            hiroMarker.addEventListener('markerFound', () => {
+                console.log("Hiro标记被找到！");
+                gameState.markerVisible = true;
+                
+                // 如果游戏已经开始，确保游戏元素可见
+                if (gameStarted && threeScene) {
+                    threeScene.visible = true;
+                }
+                
+                // 更新UI提示
+                updateMarkerStatus(true);
+            });
+            
+            hiroMarker.addEventListener('markerLost', () => {
+                console.log("Hiro标记丢失！");
+                gameState.markerVisible = false;
+                
+                // 如果游戏已经开始，隐藏游戏元素
+                if (gameStarted && threeScene) {
+                    threeScene.visible = false;
+                }
+                
+                // 更新UI提示
+                updateMarkerStatus(false);
+            });
+        } else {
+            console.error('无法找到Hiro标记元素，将在2秒后重试');
+            setTimeout(() => {
+                const retryMarker = document.querySelector('#hiro-marker');
+                if (retryMarker) {
+                    console.log("重试：找到Hiro标记元素，设置事件监听器");
+                    setupMarkerListeners(retryMarker);
+                } else {
+                    console.error('重试后仍无法找到Hiro标记元素');
+                }
+            }, 2000);
+        }
+    });
+}
+
+// 设置标记监听器
+function setupMarkerListeners(marker) {
+    marker.addEventListener('markerFound', () => {
+        console.log("Hiro标记被找到！");
+        gameState.markerVisible = true;
         
-        hiroMarker.addEventListener('markerLost', () => {
-            console.log("Hiro标记丢失！");
-            gameState.markerVisible = false;
-            
-            // 如果游戏已经开始，隐藏游戏元素
-            if (gameStarted && threeScene) {
-                threeScene.visible = false;
-            }
-        });
-    } else {
-        console.error('无法找到Hiro标记元素');
+        // 如果游戏已经开始，确保游戏元素可见
+        if (gameStarted && threeScene) {
+            threeScene.visible = true;
+        }
+        
+        // 更新UI提示
+        updateMarkerStatus(true);
+    });
+    
+    marker.addEventListener('markerLost', () => {
+        console.log("Hiro标记丢失！");
+        gameState.markerVisible = false;
+        
+        // 如果游戏已经开始，隐藏游戏元素
+        if (gameStarted && threeScene) {
+            threeScene.visible = false;
+        }
+        
+        // 更新UI提示
+        updateMarkerStatus(false);
+    });
+}
+
+// 更新标记状态UI
+function updateMarkerStatus(visible) {
+    const instructions = document.getElementById('instructions');
+    if (instructions) {
+        if (visible) {
+            instructions.classList.add('marker-found');
+            instructions.innerHTML = '<h2>标记已识别！</h2><p>点击"开始游戏"按钮开始游戏</p>';
+        } else if (!gameStarted) {
+            instructions.classList.remove('marker-found');
+            instructions.innerHTML = `
+                <h2>AR乒乓球游戏说明</h2>
+                <p>1. 打印或在另一设备上显示<a href="https://jeromeetienne.github.io/AR.js/data/images/HIRO.jpg" target="_blank">Hiro标记</a></p>
+                <p>2. 允许摄像头访问权限</p>
+                <p>3. 将摄像头对准Hiro标记</p>
+                <p>4. 点击"开始游戏"按钮</p>
+                <p>5. 移动设备来控制游戏视角和挡板</p>
+            `;
+        }
     }
 }
 
 // 初始化游戏
 function init() {
+    console.log("初始化游戏...");
+    
     // 获取AR游戏世界容器
     arGameWorld = document.querySelector('#game-world');
     if (!arGameWorld) {
@@ -81,12 +179,16 @@ function init() {
     window.addEventListener('deviceorientation', handleDeviceOrientation);
     
     // 添加触摸控制
-    document.addEventListener('touchstart', handleTouch);
-    document.addEventListener('touchmove', handleTouch);
+    document.addEventListener('touchstart', handleTouch, { passive: false });
+    document.addEventListener('touchmove', handleTouch, { passive: false });
+    
+    console.log("游戏初始化完成");
 }
 
 // 创建Three.js场景
 function createThreeScene() {
+    console.log("创建Three.js场景...");
+    
     // 创建场景
     threeScene = new THREE.Scene();
     
@@ -102,10 +204,14 @@ function createThreeScene() {
     
     // 初始隐藏场景，直到标记被找到
     threeScene.visible = false;
+    
+    console.log("Three.js场景创建完成");
 }
 
 // 创建游戏元素
 function createGameElements() {
+    console.log("创建游戏元素...");
+    
     // 创建玩家挡板
     const paddleGeometry = new THREE.BoxGeometry(0.6, 0.2, 0.04);
     const paddleMaterial = new THREE.MeshPhongMaterial({ color: 0x1E90FF });
@@ -135,6 +241,8 @@ function createGameElements() {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(0, 2, 1);
     threeScene.add(directionalLight);
+    
+    console.log("游戏元素创建完成");
 }
 
 // 创建游戏区域边界
@@ -215,7 +323,16 @@ function handleTouch(event) {
 
 // 开始游戏
 function startGame() {
+    console.log("尝试开始游戏...");
+    
     if (gameStarted) return;
+    
+    // 检查摄像头权限
+    if (!gameState.cameraPermissionGranted) {
+        alert("请先允许摄像头访问权限");
+        requestCameraPermission();
+        return;
+    }
     
     // 检查标记是否可见
     if (!gameState.markerVisible) {
@@ -223,6 +340,7 @@ function startGame() {
         return;
     }
     
+    console.log("游戏开始！");
     gameStarted = true;
     document.getElementById('start-button').style.display = 'none';
     document.getElementById('instructions').style.display = 'none';
