@@ -260,45 +260,112 @@ function createGameElements() {
 
 // 创建游戏区域边界
 function createWalls() {
-    // 材质 - 半透明
-    const wallMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0xAAAAAA, 
+    // 创建网格材质 - 蓝色科幻风格
+    const gridTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png');
+    const gridMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x00BFFF, 
         transparent: true, 
-        opacity: 0.2 
+        opacity: 0.6,
+        wireframe: true,
+        wireframeLinewidth: 2
     });
-
+    
+    // 创建辅助网格线材质
+    const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0x0088FF, 
+        transparent: true, 
+        opacity: 0.8 
+    });
+    
     // 上墙
-    const topWallGeometry = new THREE.BoxGeometry(gameWidth, 0.04, gameDepth);
-    const topWall = new THREE.Mesh(topWallGeometry, wallMaterial);
+    const topWallGeometry = new THREE.BoxGeometry(gameWidth, 0.04, gameDepth, 10, 1, 10);
+    const topWall = new THREE.Mesh(topWallGeometry, gridMaterial);
     topWall.position.y = gameHeight / 2;
     threeScene.add(topWall);
     walls.push(topWall);
+    
+    // 添加上墙网格线
+    const topEdges = new THREE.EdgesGeometry(topWallGeometry);
+    const topLine = new THREE.LineSegments(topEdges, lineMaterial);
+    topLine.position.copy(topWall.position);
+    threeScene.add(topLine);
 
     // 下墙
-    const bottomWallGeometry = new THREE.BoxGeometry(gameWidth, 0.04, gameDepth);
-    const bottomWall = new THREE.Mesh(bottomWallGeometry, wallMaterial);
+    const bottomWallGeometry = new THREE.BoxGeometry(gameWidth, 0.04, gameDepth, 10, 1, 10);
+    const bottomWall = new THREE.Mesh(bottomWallGeometry, gridMaterial);
     bottomWall.position.y = -gameHeight / 2;
     threeScene.add(bottomWall);
     walls.push(bottomWall);
+    
+    // 添加下墙网格线
+    const bottomEdges = new THREE.EdgesGeometry(bottomWallGeometry);
+    const bottomLine = new THREE.LineSegments(bottomEdges, lineMaterial);
+    bottomLine.position.copy(bottomWall.position);
+    threeScene.add(bottomLine);
 
     // 左墙
-    const leftWallGeometry = new THREE.BoxGeometry(0.04, gameHeight, gameDepth);
-    const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
+    const leftWallGeometry = new THREE.BoxGeometry(0.04, gameHeight, gameDepth, 1, 10, 10);
+    const leftWall = new THREE.Mesh(leftWallGeometry, gridMaterial);
     leftWall.position.x = -gameWidth / 2;
     threeScene.add(leftWall);
     walls.push(leftWall);
+    
+    // 添加左墙网格线
+    const leftEdges = new THREE.EdgesGeometry(leftWallGeometry);
+    const leftLine = new THREE.LineSegments(leftEdges, lineMaterial);
+    leftLine.position.copy(leftWall.position);
+    threeScene.add(leftLine);
 
     // 右墙
-    const rightWallGeometry = new THREE.BoxGeometry(0.04, gameHeight, gameDepth);
-    const rightWall = new THREE.Mesh(rightWallGeometry, wallMaterial);
+    const rightWallGeometry = new THREE.BoxGeometry(0.04, gameHeight, gameDepth, 1, 10, 10);
+    const rightWall = new THREE.Mesh(rightWallGeometry, gridMaterial);
     rightWall.position.x = gameWidth / 2;
     threeScene.add(rightWall);
     walls.push(rightWall);
+    
+    // 添加右墙网格线
+    const rightEdges = new THREE.EdgesGeometry(rightWallGeometry);
+    const rightLine = new THREE.LineSegments(rightEdges, lineMaterial);
+    rightLine.position.copy(rightWall.position);
+    threeScene.add(rightLine);
+    
+    // 添加背景网格 - 玩家后方
+    const backGridGeometry = new THREE.PlaneGeometry(gameWidth, gameHeight, 10, 10);
+    const backGrid = new THREE.Mesh(backGridGeometry, gridMaterial);
+    backGrid.position.z = gameDepth / 2 + 0.02;
+    backGrid.rotation.y = Math.PI;
+    threeScene.add(backGrid);
+    
+    // 添加背景网格线
+    const backEdges = new THREE.EdgesGeometry(backGridGeometry);
+    const backLine = new THREE.LineSegments(backEdges, lineMaterial);
+    backLine.position.copy(backGrid.position);
+    backLine.rotation.copy(backGrid.rotation);
+    threeScene.add(backLine);
+    
+    // 添加背景网格 - 电脑后方
+    const frontGridGeometry = new THREE.PlaneGeometry(gameWidth, gameHeight, 10, 10);
+    const frontGrid = new THREE.Mesh(frontGridGeometry, gridMaterial);
+    frontGrid.position.z = -gameDepth / 2 - 0.02;
+    threeScene.add(frontGrid);
+    
+    // 添加前方网格线
+    const frontEdges = new THREE.EdgesGeometry(frontGridGeometry);
+    const frontLine = new THREE.LineSegments(frontEdges, lineMaterial);
+    frontLine.position.copy(frontGrid.position);
+    frontLine.rotation.copy(frontGrid.rotation);
+    threeScene.add(frontLine);
+    
+    // 添加环境光晕效果
+    const glowLight = new THREE.PointLight(0x00BFFF, 0.5, 5);
+    glowLight.position.set(0, 0, 0);
+    threeScene.add(glowLight);
 }
 
 // 处理设备方向变化
 function handleDeviceOrientation(event) {
-    if (!gameStarted || !gameState.markerVisible) return;
+    // 移除对标记可见性的检查，只检查游戏是否已开始
+    if (!gameStarted) return;
     
     // 获取设备方向数据
     const beta = event.beta;  // X轴旋转 (-180 到 180)
@@ -318,7 +385,8 @@ function handleDeviceOrientation(event) {
 
 // 处理触摸事件
 function handleTouch(event) {
-    if (!gameStarted || !gameState.markerVisible) return;
+    // 移除对标记可见性的检查，只检查游戏是否已开始
+    if (!gameStarted) return;
     event.preventDefault();
     
     if (event.touches.length > 0) {
@@ -331,6 +399,9 @@ function handleTouch(event) {
         // 更新挡板位置
         paddle.position.x = touchX * (gameWidth / 2 - 0.3);
         paddle.position.y = touchY * (gameHeight / 2 - 0.1);
+        
+        // 添加调试日志
+        console.log("触摸控制: ", touchX, touchY, "挡板位置: ", paddle.position.x, paddle.position.y);
     }
 }
 
