@@ -21,7 +21,7 @@ let gameStarted = false;
 let playerScore = 0;
 let computerScore = 0;
 let ballSpeed = 0.05;
-let ballDirection = new THREE.Vector3(0.5, 0.5, 0.5);
+let ballDirection = new THREE.Vector3(0.3, 0.3, 0.5);
 let gameContainer;
 let gameWidth = 2; // 游戏区域宽度
 let gameHeight = 1.2; // 游戏区域高度
@@ -33,6 +33,9 @@ let arGameWorld; // AR游戏世界容器
 let threeScene; // Three.js场景
 let arInitRetries = 0; // AR初始化重试次数
 const MAX_AR_INIT_RETRIES = 3; // 最大重试次数
+let ballTrail = []; // 球的轨迹点数组
+const TRAIL_LENGTH = 15; // 轨迹长度
+let trailMeshes = []; // 轨迹网格数组
 
 // 等待页面加载完成
 window.addEventListener('load', () => {
@@ -344,7 +347,7 @@ function createGameElements() {
     console.log("创建游戏元素...");
     
     // 创建玩家挡板 - 修改为方形并增大面积
-    const paddleGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.04);
+    const paddleGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.04);
     const paddleMaterial = new THREE.MeshPhongMaterial({ color: 0x1E90FF });
     paddle = new THREE.Mesh(paddleGeometry, paddleMaterial);
     paddle.position.z = gameDepth / 2 - 0.2;
@@ -361,6 +364,9 @@ function createGameElements() {
     ball = new THREE.Mesh(ballGeometry, ballMaterial);
     threeScene.add(ball);
     resetBall();
+    
+    // 初始化球的轨迹
+    initBallTrail();
 
     // 创建游戏区域边界
     createWalls();
@@ -374,6 +380,64 @@ function createGameElements() {
     threeScene.add(directionalLight);
     
     console.log("游戏元素创建完成");
+}
+
+// 初始化球的轨迹
+function initBallTrail() {
+    // 清除现有轨迹
+    trailMeshes.forEach(mesh => {
+        if (mesh && mesh.parent) {
+            mesh.parent.remove(mesh);
+        }
+    });
+    trailMeshes = [];
+    ballTrail = [];
+    
+    // 创建轨迹点
+    const trailGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+    const trailMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00FFFF,
+        transparent: true,
+        opacity: 0.7
+    });
+    
+    // 预先创建轨迹点网格
+    for (let i = 0; i < TRAIL_LENGTH; i++) {
+        const trailMesh = new THREE.Mesh(trailGeometry, trailMaterial.clone());
+        trailMesh.visible = false; // 初始时不可见
+        trailMesh.material.opacity = 0.7 * (1 - i / TRAIL_LENGTH); // 越靠后的点越透明
+        trailMesh.scale.set(
+            1 - (i * 0.5 / TRAIL_LENGTH),
+            1 - (i * 0.5 / TRAIL_LENGTH),
+            1 - (i * 0.5 / TRAIL_LENGTH)
+        ); // 越靠后的点越小
+        threeScene.add(trailMesh);
+        trailMeshes.push(trailMesh);
+        ballTrail.push(new THREE.Vector3(0, 0, 0));
+    }
+    
+    console.log("球的轨迹初始化完成");
+}
+
+// 更新球的轨迹
+function updateBallTrail() {
+    if (!ball || !gameStarted) return;
+    
+    // 添加当前位置到轨迹开头
+    ballTrail.unshift(ball.position.clone());
+    
+    // 保持轨迹长度
+    if (ballTrail.length > TRAIL_LENGTH) {
+        ballTrail.pop();
+    }
+    
+    // 更新轨迹点位置和可见性
+    for (let i = 0; i < ballTrail.length; i++) {
+        if (i < trailMeshes.length) {
+            trailMeshes[i].position.copy(ballTrail[i]);
+            trailMeshes[i].visible = true;
+        }
+    }
 }
 
 // 创建游戏区域边界
@@ -601,20 +665,25 @@ function restartGame() {
 
 // 重置球的位置和方向
 function resetBall() {
-    if (!ball) return;
-    
+    // 重置球位置到中心
     ball.position.set(0, 0, 0);
     
-    // 随机方向，确保x和z方向有足够的速度
-    const angle = Math.random() * Math.PI * 2;
-    const zDirection = Math.random() > 0.5 ? 1 : -1;
+    // 随机初始方向
+    const randomX = Math.random() * 0.5 - 0.25;
+    const randomY = Math.random() * 0.5 - 0.25;
+    const randomZ = Math.random() > 0.5 ? 0.5 : -0.5; // 随机朝向玩家或电脑
     
-    ballDirection.x = Math.cos(angle) * 0.7;
-    ballDirection.y = Math.sin(angle) * 0.7;
-    ballDirection.z = zDirection * 0.7;
-    
-    // 确保方向向量是单位向量
+    ballDirection.set(randomX, randomY, randomZ);
     ballDirection.normalize();
+    
+    // 重置球速
+    ballSpeed = 0.05;
+    
+    // 重置轨迹
+    ballTrail = [];
+    trailMeshes.forEach(mesh => {
+        mesh.visible = false;
+    });
 }
 
 // 更新分数显示
@@ -704,7 +773,7 @@ function checkCollisions() {
         computerScore++;
         updateScore();
         
-        if (computerScore >= 5) {
+        if (computerScore >= 11) {
             gameOver('computer');
         } else {
             resetBall();
@@ -714,7 +783,7 @@ function checkCollisions() {
         playerScore++;
         updateScore();
         
-        if (playerScore >= 5) {
+        if (playerScore >= 11) {
             gameOver('player');
         } else {
             resetBall();
@@ -746,19 +815,20 @@ function animate() {
     animationId = requestAnimationFrame(animate);
     
     // 修改条件：即使标记不可见也继续游戏
-    if (gameStarted && (gameState.markerVisible || gameState.bypassMarkerDetection)) {
-        // 更新球的位置
-        if (ball) {
-            ball.position.x += ballDirection.x * ballSpeed;
-            ball.position.y += ballDirection.y * ballSpeed;
-            ball.position.z += ballDirection.z * ballSpeed;
-        }
+    if (gameStarted) {
+        // 更新球位置
+        ball.position.x += ballDirection.x * ballSpeed;
+        ball.position.y += ballDirection.y * ballSpeed;
+        ball.position.z += ballDirection.z * ballSpeed;
         
         // 检测碰撞
         checkCollisions();
         
         // 更新电脑挡板
         updateComputerPaddle();
+        
+        // 更新球的轨迹
+        updateBallTrail();
     }
 }
 
