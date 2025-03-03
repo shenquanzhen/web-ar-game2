@@ -6,13 +6,13 @@ const gameState = {
     bypassMarkerDetection: true, // 新增：绕过标记检测
     isMobile: false, // 新增：移动设备标志
     arInitialized: false, // 新增：AR初始化状态
-    deviceMotionEnabled: false, // 新增：设备运动检测状态
-    lastAcceleration: { x: 0, y: 0, z: 0 }, // 新增：上一次加速度值
+    deviceMotionEnabled: false, // 禁用设备运动检测
+    lastAcceleration: { x: 0, y: 0, z: 0 }, // 上一次加速度值
     gameWorldDistance: -3, // 新增：游戏世界距离
     gameWorldScale: 0.5, // 新增：游戏世界缩放比例
     gameWorldRotation: { x: 0, y: 0, z: 0 }, // 新增：游戏世界旋转角度
-    lastDeviceOrientation: { alpha: 0, beta: 0, gamma: 0 }, // 新增：上一次设备方向
-    deviceOrientationEnabled: false // 新增：设备方向检测状态
+    lastDeviceOrientation: { alpha: 0, beta: 0, gamma: 0 }, // 上一次设备方向
+    deviceOrientationEnabled: false // 禁用设备方向检测
 };
 
 // 游戏变量
@@ -52,12 +52,6 @@ window.addEventListener('load', () => {
     
     // 添加AR错误处理
     setupARErrorHandling();
-    
-    // 设置设备运动检测
-    setupDeviceMotionDetection();
-    
-    // 设置设备方向检测
-    setupDeviceOrientationDetection();
     
     // 设置手势缩放功能
     setupPinchZoom();
@@ -297,8 +291,8 @@ function init() {
     // 创建游戏元素
     createGameElements();
     
-    // 添加事件监听器
-    window.addEventListener('deviceorientation', handleDeviceOrientation);
+    // 添加事件监听器 - 移除设备方向监听器，只保留触摸事件
+    // window.addEventListener('deviceorientation', handleDeviceOrientation);
     window.addEventListener('touchmove', handleTouch, { passive: false });
     window.addEventListener('touchstart', handleTouch, { passive: false });
     
@@ -312,7 +306,8 @@ function init() {
     const instructions = document.getElementById('instructions');
     if (instructions) {
         const arTip = document.createElement('p');
-        arTip.innerHTML = '提示: 移动设备可以围绕游戏空间查看不同角度，双指捏合可以缩放，双指旋转可以旋转游戏空间';
+        // 更新提示，移除关于移动设备的说明，只保留触摸控制
+        arTip.innerHTML = '提示: 使用触摸屏幕拖动来控制挡板，双指捏合可以缩放游戏空间';
         arTip.style.color = '#FFFF00';
         instructions.appendChild(arTip);
     }
@@ -535,27 +530,6 @@ function createWalls() {
     const pointLight = new THREE.PointLight(0x00BFFF, 1, 10);
     pointLight.position.set(0, 0, 0);
     threeScene.add(pointLight);
-}
-
-// 处理设备方向变化
-function handleDeviceOrientation(event) {
-    // 移除对标记可见性的检查，只检查游戏是否已开始
-    if (!gameStarted) return;
-    
-    // 获取设备方向数据
-    const beta = event.beta;  // X轴旋转 (-180 到 180)
-    const gamma = event.gamma; // Y轴旋转 (-90 到 90)
-    
-    // 将设备倾斜转换为挡板移动
-    if (beta !== null && gamma !== null) {
-        // 限制在合理范围内
-        const normalizedGamma = THREE.MathUtils.clamp(gamma / 45, -1, 1);
-        const normalizedBeta = THREE.MathUtils.clamp((beta - 45) / 45, -1, 1);
-        
-        // 更新挡板位置
-        paddle.position.x = normalizedGamma * (gameWidth / 2 - 0.3);
-        paddle.position.y = -normalizedBeta * (gameHeight / 2 - 0.1);
-    }
 }
 
 // 处理触摸事件 - 修改为支持游戏空间调整
@@ -812,24 +786,31 @@ function updateComputerPaddle() {
 
 // 动画循环
 function animate() {
+    // 取消动画帧，避免多次调用
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+    }
+    
+    // 请求下一帧
     animationId = requestAnimationFrame(animate);
     
-    // 修改条件：即使标记不可见也继续游戏
-    if (gameStarted) {
-        // 更新球位置
-        ball.position.x += ballDirection.x * ballSpeed;
-        ball.position.y += ballDirection.y * ballSpeed;
-        ball.position.z += ballDirection.z * ballSpeed;
-        
-        // 检测碰撞
-        checkCollisions();
-        
-        // 更新电脑挡板
-        updateComputerPaddle();
-        
-        // 更新球的轨迹
-        updateBallTrail();
-    }
+    // 如果游戏未开始，不更新游戏逻辑
+    if (!gameStarted) return;
+    
+    // 无论标记是否可见，都继续游戏
+    // 更新球位置
+    ball.position.x += ballDirection.x * ballSpeed;
+    ball.position.y += ballDirection.y * ballSpeed;
+    ball.position.z += ballDirection.z * ballSpeed;
+    
+    // 更新球的轨迹
+    updateBallTrail();
+    
+    // 检查碰撞
+    checkCollisions();
+    
+    // 更新电脑挡板
+    updateComputerPaddle();
 }
 
 // 设置设备运动检测
