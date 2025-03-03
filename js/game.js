@@ -343,14 +343,14 @@ function createThreeScene() {
 function createGameElements() {
     console.log("创建游戏元素...");
     
-    // 创建玩家挡板
-    const paddleGeometry = new THREE.BoxGeometry(0.6, 0.2, 0.04);
+    // 创建玩家挡板 - 修改为方形并增大面积
+    const paddleGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.04);
     const paddleMaterial = new THREE.MeshPhongMaterial({ color: 0x1E90FF });
     paddle = new THREE.Mesh(paddleGeometry, paddleMaterial);
     paddle.position.z = gameDepth / 2 - 0.2;
     threeScene.add(paddle);
 
-    // 创建电脑挡板
+    // 创建电脑挡板 - 同样修改为方形
     computerPaddle = new THREE.Mesh(paddleGeometry, new THREE.MeshPhongMaterial({ color: 0xFF4500 }));
     computerPaddle.position.z = -gameDepth / 2 + 0.2;
     threeScene.add(computerPaddle);
@@ -507,13 +507,39 @@ function handleTouch(event) {
     if (event.touches.length === 1) {
         const touch = event.touches[0];
         
-        // 将触摸位置转换为相对于屏幕中心的位置
-        const touchX = (touch.clientX / window.innerWidth) * 2 - 1;
-        const touchY = -(touch.clientY / window.innerHeight) * 2 + 1;
+        // 获取设备信息
+        const isIPad = /iPad/i.test(navigator.userAgent) || 
+                      (/Macintosh/i.test(navigator.userAgent) && 'ontouchend' in document);
         
-        // 更新挡板位置
-        paddle.position.x = touchX * (gameWidth / 2 - 0.3);
-        paddle.position.y = touchY * (gameHeight / 2 - 0.1);
+        // 获取实际触摸坐标
+        let touchX, touchY;
+        
+        // iPad特殊处理
+        if (isIPad) {
+            // 对于iPad，使用触摸点相对于目标元素的位置
+            const rect = event.target.getBoundingClientRect();
+            touchX = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+            touchY = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // 添加iPad特定调试日志
+            console.log("iPad触摸: ", 
+                        "clientX:", touch.clientX, 
+                        "clientY:", touch.clientY, 
+                        "rect:", rect.left, rect.top, rect.width, rect.height,
+                        "计算结果:", touchX, touchY);
+        } else {
+            // 对于其他设备，使用标准计算
+            touchX = (touch.clientX / window.innerWidth) * 2 - 1;
+            touchY = -(touch.clientY / window.innerHeight) * 2 + 1;
+        }
+        
+        // 限制触摸范围
+        touchX = THREE.MathUtils.clamp(touchX, -1, 1);
+        touchY = THREE.MathUtils.clamp(touchY, -1, 1);
+        
+        // 更新挡板位置，考虑到挡板现在是方形的
+        paddle.position.x = touchX * (gameWidth / 2 - 0.25);
+        paddle.position.y = touchY * (gameHeight / 2 - 0.25);
         
         // 添加调试日志
         console.log("触摸控制: ", touchX, touchY, "挡板位置: ", paddle.position.x, paddle.position.y);
@@ -709,9 +735,9 @@ function updateComputerPaddle() {
         computerPaddle.position.x += (targetX - computerPaddle.position.x) * difficulty;
         computerPaddle.position.y += (targetY - computerPaddle.position.y) * difficulty;
         
-        // 限制挡板在游戏区域内
-        computerPaddle.position.x = THREE.MathUtils.clamp(computerPaddle.position.x, -gameWidth / 2 + 0.3, gameWidth / 2 - 0.3);
-        computerPaddle.position.y = THREE.MathUtils.clamp(computerPaddle.position.y, -gameHeight / 2 + 0.1, gameHeight / 2 - 0.1);
+        // 限制挡板在游戏区域内，考虑到挡板现在是方形的
+        computerPaddle.position.x = THREE.MathUtils.clamp(computerPaddle.position.x, -gameWidth / 2 + 0.25, gameWidth / 2 - 0.25);
+        computerPaddle.position.y = THREE.MathUtils.clamp(computerPaddle.position.y, -gameHeight / 2 + 0.25, gameHeight / 2 - 0.25);
     }
 }
 
