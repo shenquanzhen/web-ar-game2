@@ -5,7 +5,11 @@ const gameState = {
     cameraPermissionGranted: false,
     bypassMarkerDetection: true, // 新增：绕过标记检测
     isMobile: false, // 新增：移动设备标志
-    arInitialized: false // 新增：AR初始化状态
+    arInitialized: false, // 新增：AR初始化状态
+    deviceMotionEnabled: false, // 新增：设备运动检测状态
+    lastAcceleration: { x: 0, y: 0, z: 0 }, // 新增：上一次加速度值
+    gameWorldDistance: -3, // 新增：游戏世界距离
+    gameWorldScale: 0.5 // 新增：游戏世界缩放比例
 };
 
 // 游戏变量
@@ -16,7 +20,9 @@ let computerScore = 0;
 let ballSpeed = 0.05;
 let ballDirection = new THREE.Vector3(0.5, 0.5, 0.5);
 let gameContainer;
-let gameWidth, gameHeight, gameDepth;
+let gameWidth = 2; // 游戏区域宽度
+let gameHeight = 1.2; // 游戏区域高度
+let gameDepth = 3; // 游戏区域深度
 let walls = [];
 let animationId = null;
 let difficulty = 0.03; // 电脑AI难度系数
@@ -40,6 +46,12 @@ window.addEventListener('load', () => {
     
     // 添加AR错误处理
     setupARErrorHandling();
+    
+    // 设置设备运动检测
+    setupDeviceMotionDetection();
+    
+    // 设置手势缩放功能
+    setupPinchZoom();
     
     // 初始化游戏
     setTimeout(init, 2000); // 延迟初始化，确保AR.js已加载
@@ -264,6 +276,45 @@ function updateMarkerStatus(visible) {
 function init() {
     console.log("初始化游戏...");
     
+    // 设置游戏世界初始位置和缩放
+    const gameWorld = document.querySelector('#game-world');
+    if (gameWorld) {
+        gameWorld.setAttribute('position', `0 0 ${gameState.gameWorldDistance}`);
+        gameWorld.setAttribute('scale', `${gameState.gameWorldScale} ${gameState.gameWorldScale} ${gameState.gameWorldScale}`);
+        console.log(`游戏世界初始位置: 0 0 ${gameState.gameWorldDistance}, 缩放: ${gameState.gameWorldScale}`);
+    }
+    
+    // 创建Three.js场景
+    createThreeScene();
+    
+    // 创建游戏元素
+    createGameElements();
+    
+    // 添加事件监听器
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+    window.addEventListener('touchmove', handleTouch, { passive: false });
+    window.addEventListener('touchstart', handleTouch, { passive: false });
+    
+    // 添加开始游戏按钮事件监听器
+    document.getElementById('start-button').addEventListener('click', startGame);
+    
+    // 添加重新开始按钮事件监听器
+    document.getElementById('restart-button').addEventListener('click', restartGame);
+    
+    // 添加AR相关提示
+    const instructions = document.getElementById('instructions');
+    if (instructions) {
+        const arTip = document.createElement('p');
+        arTip.innerHTML = '提示: 移动设备可以改变游戏空间的远近，双指捏合可以缩放游戏空间';
+        arTip.style.color = '#FFFF00';
+        instructions.appendChild(arTip);
+    }
+}
+
+// 创建Three.js场景
+function createThreeScene() {
+    console.log("创建Three.js场景...");
+    
     // 获取AR游戏世界容器
     arGameWorld = document.querySelector('#game-world');
     if (!arGameWorld) {
@@ -271,37 +322,8 @@ function init() {
         return;
     }
     
-    // 设置游戏区域大小
-    gameWidth = 2;
-    gameHeight = 1.2;
-    gameDepth = 3;
-    
-    // 创建Three.js场景
-    createThreeScene();
-    
-    // 添加事件监听器
-    document.getElementById('start-button').addEventListener('click', startGame);
-    document.getElementById('restart-button').addEventListener('click', restartGame);
-    
-    // 添加设备方向控制
-    window.addEventListener('deviceorientation', handleDeviceOrientation);
-    
-    // 添加触摸控制
-    document.addEventListener('touchstart', handleTouch, { passive: false });
-    document.addEventListener('touchmove', handleTouch, { passive: false });
-    
-    console.log("游戏初始化完成");
-}
-
-// 创建Three.js场景
-function createThreeScene() {
-    console.log("创建Three.js场景...");
-    
     // 创建场景
     threeScene = new THREE.Scene();
-    
-    // 创建游戏元素
-    createGameElements();
     
     // 将Three.js场景添加到A-Frame实体
     const threeJSScene = new THREE.Object3D();
@@ -309,20 +331,6 @@ function createThreeScene() {
     
     // 将Three.js场景附加到A-Frame实体
     arGameWorld.object3D.add(threeJSScene);
-    
-    // 根据是否绕过标记检测决定场景是否可见
-    threeScene.visible = gameState.bypassMarkerDetection;
-    
-    // 如果是移动设备，添加额外的光源以增强可见性
-    if (gameState.isMobile) {
-        const spotLight = new THREE.SpotLight(0xffffff, 1);
-        spotLight.position.set(0, 2, 2);
-        spotLight.angle = Math.PI / 4;
-        spotLight.penumbra = 0.1;
-        spotLight.decay = 2;
-        spotLight.distance = 10;
-        threeScene.add(spotLight);
-    }
     
     console.log("Three.js场景创建完成");
 }
@@ -482,13 +490,17 @@ function handleDeviceOrientation(event) {
     }
 }
 
-// 处理触摸事件
+// 处理触摸事件 - 修改为支持游戏空间调整
 function handleTouch(event) {
     // 移除对标记可见性的检查，只检查游戏是否已开始
     if (!gameStarted) return;
+    
+    // 如果是双指触摸，不处理挡板移动（由缩放功能处理）
+    if (event.touches.length === 2) return;
+    
     event.preventDefault();
     
-    if (event.touches.length > 0) {
+    if (event.touches.length === 1) {
         const touch = event.touches[0];
         
         // 将触摸位置转换为相对于屏幕中心的位置
@@ -718,4 +730,167 @@ function animate() {
         // 更新电脑挡板
         updateComputerPaddle();
     }
+}
+
+// 设置设备运动检测
+function setupDeviceMotionDetection() {
+    // 检查设备是否支持DeviceMotionEvent
+    if (window.DeviceMotionEvent) {
+        console.log("设备支持运动检测");
+        
+        // 对于iOS 13+，需要请求权限
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            // 添加按钮请求权限
+            const motionButton = document.createElement('button');
+            motionButton.innerText = '启用设备运动检测';
+            motionButton.style.position = 'absolute';
+            motionButton.style.bottom = '10px';
+            motionButton.style.left = '10px';
+            motionButton.style.zIndex = '100';
+            motionButton.style.padding = '8px';
+            motionButton.style.backgroundColor = '#4CAF50';
+            motionButton.style.color = 'white';
+            motionButton.style.border = 'none';
+            motionButton.style.borderRadius = '4px';
+            
+            motionButton.addEventListener('click', () => {
+                DeviceMotionEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            gameState.deviceMotionEnabled = true;
+                            window.addEventListener('devicemotion', handleDeviceMotion);
+                            motionButton.style.display = 'none';
+                            console.log("设备运动检测权限已获取");
+                        }
+                    })
+                    .catch(console.error);
+            });
+            
+            document.body.appendChild(motionButton);
+        } else {
+            // 非iOS设备，直接添加监听器
+            gameState.deviceMotionEnabled = true;
+            window.addEventListener('devicemotion', handleDeviceMotion);
+            console.log("设备运动检测已启用");
+        }
+    } else {
+        console.log("设备不支持运动检测");
+    }
+}
+
+// 处理设备运动
+function handleDeviceMotion(event) {
+    if (!gameStarted) return;
+    
+    // 获取加速度数据
+    const acceleration = event.accelerationIncludingGravity;
+    
+    if (!acceleration) return;
+    
+    // 计算加速度变化
+    const deltaX = acceleration.x - gameState.lastAcceleration.x;
+    const deltaY = acceleration.y - gameState.lastAcceleration.y;
+    const deltaZ = acceleration.z - gameState.lastAcceleration.z;
+    
+    // 更新上一次加速度值
+    gameState.lastAcceleration = {
+        x: acceleration.x,
+        y: acceleration.y,
+        z: acceleration.z
+    };
+    
+    // 计算总变化量
+    const totalDelta = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+    
+    // 如果变化量超过阈值，调整游戏世界距离
+    if (totalDelta > 0.5) {
+        // 根据Z轴加速度调整游戏世界距离
+        // 当设备向前移动时，游戏世界靠近；向后移动时，游戏世界远离
+        const zChange = deltaZ * 0.05;
+        adjustGameWorldDistance(zChange);
+    }
+}
+
+// 调整游戏世界距离
+function adjustGameWorldDistance(change) {
+    // 限制距离范围
+    gameState.gameWorldDistance = THREE.MathUtils.clamp(
+        gameState.gameWorldDistance + change,
+        -5, // 最远距离
+        -1  // 最近距离
+    );
+    
+    // 更新游戏世界位置
+    const gameWorld = document.querySelector('#game-world');
+    if (gameWorld) {
+        gameWorld.setAttribute('position', `0 0 ${gameState.gameWorldDistance}`);
+        console.log(`游戏世界距离调整为: ${gameState.gameWorldDistance}`);
+    }
+}
+
+// 设置手势缩放功能
+function setupPinchZoom() {
+    let initialDistance = 0;
+    let initialScale = gameState.gameWorldScale;
+    let isZooming = false;
+    
+    // 触摸开始事件
+    document.addEventListener('touchstart', (event) => {
+        if (event.touches.length === 2) {
+            // 计算两个触摸点之间的初始距离
+            const touch1 = event.touches[0];
+            const touch2 = event.touches[1];
+            initialDistance = Math.hypot(
+                touch2.clientX - touch1.clientX,
+                touch2.clientY - touch1.clientY
+            );
+            initialScale = gameState.gameWorldScale;
+            isZooming = true;
+        }
+    });
+    
+    // 触摸移动事件
+    document.addEventListener('touchmove', (event) => {
+        if (isZooming && event.touches.length === 2) {
+            // 计算当前两个触摸点之间的距离
+            const touch1 = event.touches[0];
+            const touch2 = event.touches[1];
+            const currentDistance = Math.hypot(
+                touch2.clientX - touch1.clientX,
+                touch2.clientY - touch1.clientY
+            );
+            
+            // 计算缩放比例
+            const scaleFactor = currentDistance / initialDistance;
+            
+            // 应用缩放
+            gameState.gameWorldScale = THREE.MathUtils.clamp(
+                initialScale * scaleFactor,
+                0.2, // 最小缩放
+                1.0  // 最大缩放
+            );
+            
+            // 更新游戏世界缩放
+            const gameWorld = document.querySelector('#game-world');
+            if (gameWorld) {
+                gameWorld.setAttribute('scale', `${gameState.gameWorldScale} ${gameState.gameWorldScale} ${gameState.gameWorldScale}`);
+                console.log(`游戏世界缩放调整为: ${gameState.gameWorldScale}`);
+            }
+            
+            // 防止页面缩放
+            event.preventDefault();
+        }
+    });
+    
+    // 触摸结束事件
+    document.addEventListener('touchend', (event) => {
+        if (event.touches.length < 2) {
+            isZooming = false;
+        }
+    });
+    
+    // 触摸取消事件
+    document.addEventListener('touchcancel', (event) => {
+        isZooming = false;
+    });
 } 
