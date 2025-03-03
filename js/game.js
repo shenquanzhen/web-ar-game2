@@ -9,7 +9,10 @@ const gameState = {
     deviceMotionEnabled: false, // 新增：设备运动检测状态
     lastAcceleration: { x: 0, y: 0, z: 0 }, // 新增：上一次加速度值
     gameWorldDistance: -3, // 新增：游戏世界距离
-    gameWorldScale: 0.5 // 新增：游戏世界缩放比例
+    gameWorldScale: 0.5, // 新增：游戏世界缩放比例
+    gameWorldRotation: { x: 0, y: 0, z: 0 }, // 新增：游戏世界旋转角度
+    lastDeviceOrientation: { alpha: 0, beta: 0, gamma: 0 }, // 新增：上一次设备方向
+    deviceOrientationEnabled: false // 新增：设备方向检测状态
 };
 
 // 游戏变量
@@ -49,6 +52,9 @@ window.addEventListener('load', () => {
     
     // 设置设备运动检测
     setupDeviceMotionDetection();
+    
+    // 设置设备方向检测
+    setupDeviceOrientationDetection();
     
     // 设置手势缩放功能
     setupPinchZoom();
@@ -276,13 +282,11 @@ function updateMarkerStatus(visible) {
 function init() {
     console.log("初始化游戏...");
     
-    // 设置游戏世界初始位置和缩放
-    const gameWorld = document.querySelector('#game-world');
-    if (gameWorld) {
-        gameWorld.setAttribute('position', `0 0 ${gameState.gameWorldDistance}`);
-        gameWorld.setAttribute('scale', `${gameState.gameWorldScale} ${gameState.gameWorldScale} ${gameState.gameWorldScale}`);
-        console.log(`游戏世界初始位置: 0 0 ${gameState.gameWorldDistance}, 缩放: ${gameState.gameWorldScale}`);
-    }
+    // 设置游戏世界初始变换
+    gameState.gameWorldDistance = -3;
+    gameState.gameWorldRotation = { x: 0, y: 0, z: 0 };
+    gameState.gameWorldScale = 0.5;
+    updateGameWorldTransform();
     
     // 创建Three.js场景
     createThreeScene();
@@ -305,7 +309,7 @@ function init() {
     const instructions = document.getElementById('instructions');
     if (instructions) {
         const arTip = document.createElement('p');
-        arTip.innerHTML = '提示: 移动设备可以改变游戏空间的远近，双指捏合可以缩放游戏空间';
+        arTip.innerHTML = '提示: 移动设备可以围绕游戏空间查看不同角度，双指捏合可以缩放，双指旋转可以旋转游戏空间';
         arTip.style.color = '#FFFF00';
         instructions.appendChild(arTip);
     }
@@ -740,9 +744,10 @@ function setupDeviceMotionDetection() {
         
         // 对于iOS 13+，需要请求权限
         if (typeof DeviceMotionEvent.requestPermission === 'function') {
-            // 添加按钮请求权限
-            const motionButton = document.createElement('button');
-            motionButton.innerText = '启用设备运动检测';
+            // 添加按钮请求权限 - 与方向检测共用一个按钮
+            const motionButton = document.getElementById('motion-permission-button') || document.createElement('button');
+            motionButton.id = 'motion-permission-button';
+            motionButton.innerText = '启用设备运动和方向检测';
             motionButton.style.position = 'absolute';
             motionButton.style.bottom = '10px';
             motionButton.style.left = '10px';
@@ -753,20 +758,34 @@ function setupDeviceMotionDetection() {
             motionButton.style.border = 'none';
             motionButton.style.borderRadius = '4px';
             
-            motionButton.addEventListener('click', () => {
-                DeviceMotionEvent.requestPermission()
-                    .then(response => {
-                        if (response === 'granted') {
+            // 如果已经设置了方向检测按钮，不需要再添加事件监听器
+            if (!document.getElementById('motion-permission-button')) {
+                motionButton.addEventListener('click', () => {
+                    Promise.all([
+                        DeviceMotionEvent.requestPermission(),
+                        typeof DeviceOrientationEvent.requestPermission === 'function' 
+                            ? DeviceOrientationEvent.requestPermission() 
+                            : Promise.resolve('granted')
+                    ])
+                    .then(responses => {
+                        if (responses[0] === 'granted') {
                             gameState.deviceMotionEnabled = true;
                             window.addEventListener('devicemotion', handleDeviceMotion);
+                            
+                            if (responses[1] === 'granted') {
+                                gameState.deviceOrientationEnabled = true;
+                                window.addEventListener('deviceorientation', handleDeviceOrientationForGameWorld);
+                            }
+                            
                             motionButton.style.display = 'none';
-                            console.log("设备运动检测权限已获取");
+                            console.log("设备运动和方向检测权限已获取");
                         }
                     })
                     .catch(console.error);
-            });
-            
-            document.body.appendChild(motionButton);
+                });
+                
+                document.body.appendChild(motionButton);
+            }
         } else {
             // 非iOS设备，直接添加监听器
             gameState.deviceMotionEnabled = true;
@@ -802,16 +821,47 @@ function handleDeviceMotion(event) {
     // 计算总变化量
     const totalDelta = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
     
-    // 如果变化量超过阈值，调整游戏世界距离
+    // 如果变化量超过阈值，调整游戏世界位置
     if (totalDelta > 0.5) {
-        // 根据Z轴加速度调整游戏世界距离
-        // 当设备向前移动时，游戏世界靠近；向后移动时，游戏世界远离
-        const zChange = deltaZ * 0.05;
-        adjustGameWorldDistance(zChange);
+        // 根据加速度变化调整游戏世界位置
+        // 使用小系数来平滑移动
+        const positionFactor = 0.05;
+        
+        // 调整游戏世界距离 - 前后移动
+        const zChange = deltaZ * positionFactor;
+        gameState.gameWorldDistance = THREE.MathUtils.clamp(
+            gameState.gameWorldDistance + zChange,
+            -5, // 最远距离
+            -1  // 最近距离
+        );
+        
+        // 应用位置变化
+        updateGameWorldTransform();
     }
 }
 
-// 调整游戏世界距离
+// 更新游戏世界变换（位置、旋转、缩放）
+function updateGameWorldTransform() {
+    const gameWorld = document.querySelector('#game-world');
+    if (gameWorld) {
+        // 更新位置
+        gameWorld.setAttribute('position', `0 0 ${gameState.gameWorldDistance}`);
+        
+        // 更新旋转 - 使用欧拉角
+        gameWorld.setAttribute('rotation', 
+            `${gameState.gameWorldRotation.x} ${gameState.gameWorldRotation.y} ${gameState.gameWorldRotation.z}`);
+        
+        // 更新缩放
+        gameWorld.setAttribute('scale', 
+            `${gameState.gameWorldScale} ${gameState.gameWorldScale} ${gameState.gameWorldScale}`);
+        
+        console.log(`游戏世界更新: 位置(0,0,${gameState.gameWorldDistance}), ` +
+                   `旋转(${gameState.gameWorldRotation.x},${gameState.gameWorldRotation.y},${gameState.gameWorldRotation.z}), ` +
+                   `缩放(${gameState.gameWorldScale})`);
+    }
+}
+
+// 调整游戏世界距离 - 修改为使用updateGameWorldTransform
 function adjustGameWorldDistance(change) {
     // 限制距离范围
     gameState.gameWorldDistance = THREE.MathUtils.clamp(
@@ -820,19 +870,109 @@ function adjustGameWorldDistance(change) {
         -1  // 最近距离
     );
     
-    // 更新游戏世界位置
-    const gameWorld = document.querySelector('#game-world');
-    if (gameWorld) {
-        gameWorld.setAttribute('position', `0 0 ${gameState.gameWorldDistance}`);
-        console.log(`游戏世界距离调整为: ${gameState.gameWorldDistance}`);
+    // 更新游戏世界变换
+    updateGameWorldTransform();
+}
+
+// 设置设备方向检测
+function setupDeviceOrientationDetection() {
+    // 检查设备是否支持DeviceOrientationEvent
+    if (window.DeviceOrientationEvent) {
+        console.log("设备支持方向检测");
+        
+        // 对于iOS 13+，需要请求权限
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // 使用与设备运动检测相同的按钮
+            const orientationButton = document.getElementById('motion-permission-button') || document.createElement('button');
+            orientationButton.id = 'motion-permission-button';
+            orientationButton.innerText = '启用设备运动和方向检测';
+            orientationButton.style.position = 'absolute';
+            orientationButton.style.bottom = '10px';
+            orientationButton.style.left = '10px';
+            orientationButton.style.zIndex = '100';
+            orientationButton.style.padding = '8px';
+            orientationButton.style.backgroundColor = '#4CAF50';
+            orientationButton.style.color = 'white';
+            orientationButton.style.border = 'none';
+            orientationButton.style.borderRadius = '4px';
+            
+            orientationButton.addEventListener('click', () => {
+                Promise.all([
+                    DeviceOrientationEvent.requestPermission(),
+                    DeviceMotionEvent.requestPermission()
+                ])
+                .then(responses => {
+                    if (responses[0] === 'granted' && responses[1] === 'granted') {
+                        gameState.deviceOrientationEnabled = true;
+                        gameState.deviceMotionEnabled = true;
+                        window.addEventListener('deviceorientation', handleDeviceOrientationForGameWorld);
+                        window.addEventListener('devicemotion', handleDeviceMotion);
+                        orientationButton.style.display = 'none';
+                        console.log("设备方向和运动检测权限已获取");
+                    }
+                })
+                .catch(console.error);
+            });
+            
+            if (!document.getElementById('motion-permission-button')) {
+                document.body.appendChild(orientationButton);
+            }
+        } else {
+            // 非iOS设备，直接添加监听器
+            gameState.deviceOrientationEnabled = true;
+            window.addEventListener('deviceorientation', handleDeviceOrientationForGameWorld);
+            console.log("设备方向检测已启用");
+        }
+    } else {
+        console.log("设备不支持方向检测");
     }
 }
 
-// 设置手势缩放功能
+// 处理设备方向变化 - 用于游戏世界旋转
+function handleDeviceOrientationForGameWorld(event) {
+    if (!gameStarted) return;
+    
+    // 获取设备方向数据
+    const alpha = event.alpha || 0; // Z轴旋转 (0-360)
+    const beta = event.beta || 0;   // X轴旋转 (-180 到 180)
+    const gamma = event.gamma || 0; // Y轴旋转 (-90 到 90)
+    
+    // 计算方向变化
+    const deltaAlpha = alpha - gameState.lastDeviceOrientation.alpha;
+    const deltaBeta = beta - gameState.lastDeviceOrientation.beta;
+    const deltaGamma = gamma - gameState.lastDeviceOrientation.gamma;
+    
+    // 更新上一次方向
+    gameState.lastDeviceOrientation = { alpha, beta, gamma };
+    
+    // 计算总变化量
+    const totalDelta = Math.abs(deltaAlpha) + Math.abs(deltaBeta) + Math.abs(deltaGamma);
+    
+    // 如果变化量超过阈值，调整游戏世界旋转
+    if (totalDelta > 1.5) {
+        // 根据设备方向变化调整游戏世界旋转
+        // 使用小系数来平滑旋转
+        const rotationFactor = 0.05;
+        
+        // 更新游戏世界旋转角度
+        gameState.gameWorldRotation.y += deltaAlpha * rotationFactor;
+        gameState.gameWorldRotation.x += deltaBeta * rotationFactor;
+        gameState.gameWorldRotation.z += deltaGamma * rotationFactor;
+        
+        // 应用旋转
+        updateGameWorldTransform();
+    }
+}
+
+// 设置手势缩放和旋转功能
 function setupPinchZoom() {
     let initialDistance = 0;
     let initialScale = gameState.gameWorldScale;
     let isZooming = false;
+    
+    // 旋转手势变量
+    let initialAngle = 0;
+    let isRotating = false;
     
     // 触摸开始事件
     document.addEventListener('touchstart', (event) => {
@@ -845,7 +985,15 @@ function setupPinchZoom() {
                 touch2.clientY - touch1.clientY
             );
             initialScale = gameState.gameWorldScale;
+            
+            // 计算初始角度
+            initialAngle = Math.atan2(
+                touch2.clientY - touch1.clientY,
+                touch2.clientX - touch1.clientX
+            ) * 180 / Math.PI;
+            
             isZooming = true;
+            isRotating = true;
         }
     });
     
@@ -860,8 +1008,17 @@ function setupPinchZoom() {
                 touch2.clientY - touch1.clientY
             );
             
+            // 计算当前角度
+            const currentAngle = Math.atan2(
+                touch2.clientY - touch1.clientY,
+                touch2.clientX - touch1.clientX
+            ) * 180 / Math.PI;
+            
             // 计算缩放比例
             const scaleFactor = currentDistance / initialDistance;
+            
+            // 计算旋转角度变化
+            const angleDelta = currentAngle - initialAngle;
             
             // 应用缩放
             gameState.gameWorldScale = THREE.MathUtils.clamp(
@@ -870,12 +1027,14 @@ function setupPinchZoom() {
                 1.0  // 最大缩放
             );
             
-            // 更新游戏世界缩放
-            const gameWorld = document.querySelector('#game-world');
-            if (gameWorld) {
-                gameWorld.setAttribute('scale', `${gameState.gameWorldScale} ${gameState.gameWorldScale} ${gameState.gameWorldScale}`);
-                console.log(`游戏世界缩放调整为: ${gameState.gameWorldScale}`);
+            // 应用旋转 - 只旋转Y轴
+            if (Math.abs(angleDelta) > 1) {
+                gameState.gameWorldRotation.y += angleDelta * 0.1;
+                initialAngle = currentAngle;
             }
+            
+            // 更新游戏世界变换
+            updateGameWorldTransform();
             
             // 防止页面缩放
             event.preventDefault();
@@ -886,11 +1045,13 @@ function setupPinchZoom() {
     document.addEventListener('touchend', (event) => {
         if (event.touches.length < 2) {
             isZooming = false;
+            isRotating = false;
         }
     });
     
     // 触摸取消事件
     document.addEventListener('touchcancel', (event) => {
         isZooming = false;
+        isRotating = false;
     });
 } 
