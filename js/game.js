@@ -435,37 +435,30 @@ function createWalls() {
     rightLine.position.copy(rightWall.position);
     threeScene.add(rightLine);
     
-    // 添加背景网格 - 玩家后方
-    const backGridGeometry = new THREE.PlaneGeometry(gameWidth, gameHeight, 10, 10);
-    const backGrid = new THREE.Mesh(backGridGeometry, gridMaterial);
-    backGrid.position.z = gameDepth / 2 + 0.02;
-    backGrid.rotation.y = Math.PI;
-    threeScene.add(backGrid);
+    // 添加边界指示线 - 前后边界
+    const frontBoundaryGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(gameWidth, gameHeight, 0.01));
+    const frontBoundary = new THREE.LineSegments(frontBoundaryGeometry, new THREE.LineBasicMaterial({ color: 0x00FFFF, transparent: true, opacity: 0.4 }));
+    frontBoundary.position.z = -gameDepth / 2;
+    threeScene.add(frontBoundary);
     
-    // 添加背景网格线
-    const backEdges = new THREE.EdgesGeometry(backGridGeometry);
-    const backLine = new THREE.LineSegments(backEdges, lineMaterial);
-    backLine.position.copy(backGrid.position);
-    backLine.rotation.copy(backGrid.rotation);
-    threeScene.add(backLine);
-    
-    // 添加背景网格 - 电脑后方
-    const frontGridGeometry = new THREE.PlaneGeometry(gameWidth, gameHeight, 10, 10);
-    const frontGrid = new THREE.Mesh(frontGridGeometry, gridMaterial);
-    frontGrid.position.z = -gameDepth / 2 - 0.02;
-    threeScene.add(frontGrid);
-    
-    // 添加前方网格线
-    const frontEdges = new THREE.EdgesGeometry(frontGridGeometry);
-    const frontLine = new THREE.LineSegments(frontEdges, lineMaterial);
-    frontLine.position.copy(frontGrid.position);
-    frontLine.rotation.copy(frontGrid.rotation);
-    threeScene.add(frontLine);
+    const backBoundaryGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(gameWidth, gameHeight, 0.01));
+    const backBoundary = new THREE.LineSegments(backBoundaryGeometry, new THREE.LineBasicMaterial({ color: 0x00FFFF, transparent: true, opacity: 0.4 }));
+    backBoundary.position.z = gameDepth / 2;
+    threeScene.add(backBoundary);
     
     // 添加环境光晕效果
-    const glowLight = new THREE.PointLight(0x00BFFF, 0.5, 5);
-    glowLight.position.set(0, 0, 0);
-    threeScene.add(glowLight);
+    const ambientLight = new THREE.AmbientLight(0x404040);
+    threeScene.add(ambientLight);
+    
+    // 添加方向光
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(0, 1, 1).normalize();
+    threeScene.add(directionalLight);
+    
+    // 添加点光源
+    const pointLight = new THREE.PointLight(0x00BFFF, 1, 10);
+    pointLight.position.set(0, 0, 0);
+    threeScene.add(pointLight);
 }
 
 // 处理设备方向变化
@@ -612,12 +605,13 @@ function gameOver(winner) {
 function checkCollisions() {
     if (!ball) return;
     
-    // 与墙壁的碰撞
+    // 与左右墙壁的碰撞
     if (ball.position.x + ball.geometry.parameters.radius > gameWidth / 2 || 
         ball.position.x - ball.geometry.parameters.radius < -gameWidth / 2) {
         ballDirection.x *= -1;
     }
     
+    // 与上下墙壁的碰撞
     if (ball.position.y + ball.geometry.parameters.radius > gameHeight / 2 || 
         ball.position.y - ball.geometry.parameters.radius < -gameHeight / 2) {
         ballDirection.y *= -1;
@@ -662,8 +656,8 @@ function checkCollisions() {
         ballDirection.normalize();
     }
     
-    // 检查是否有人得分
-    if (ball.position.z > gameDepth / 2) {
+    // 检查是否有人得分 - 球超出前后边界
+    if (ball.position.z > gameDepth / 2 + ball.geometry.parameters.radius) {
         // 电脑得分
         computerScore++;
         updateScore();
@@ -673,7 +667,7 @@ function checkCollisions() {
         } else {
             resetBall();
         }
-    } else if (ball.position.z < -gameDepth / 2) {
+    } else if (ball.position.z < -gameDepth / 2 - ball.geometry.parameters.radius) {
         // 玩家得分
         playerScore++;
         updateScore();
